@@ -1,0 +1,677 @@
+---
+title: "Practicum Interim"
+format: html
+knitr: 
+  opts_chunk: 
+    echo: true
+    eval: true
+---
+# Data
+```{r}
+library(tidyverse)
+library(lubridate)
+
+world <- read_csv("/Users/nw/Desktop/Practicum/Comtrade/US imports from world.csv")
+world
+```
+
+#World
+```{r}
+pw <- world %>%
+  mutate(total_value = cifvalue/1000000) %>%
+  select(refYear, flowDesc, partnerDesc, cmdDesc, total_value) %>%
+  ggplot(aes(x = refYear, y = total_value)) +
+  geom_line(color = "blue") +
+  geom_point() +
+  theme_minimal() +
+  labs(
+    x = "Year",
+    y = "Total Value (US$) in Million",
+    title = 'Telecomm - US Imports From World Over Years',
+    caption = "Source: UN Comtrade"
+  )
+pw
+```
+
+#US DVA Final Demands
+```{r}
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(scales)
+
+us_dfd <- read_csv("/Users/nw/Desktop/Practicum/TiVA/us_dfd.csv")
+us_dfd
+
+
+graph <- us_dfd %>%
+  select(TIME_PERIOD, OBS_VALUE) %>%
+  mutate(
+    TIME_PERIOD = as.numeric(TIME_PERIOD),
+    OBS_VALUE = as.numeric(OBS_VALUE)
+  ) %>%
+  arrange(TIME_PERIOD)
+
+p <- ggplot(graph, aes(x = TIME_PERIOD, y = OBS_VALUE)) +
+  geom_line(linewidth = 1.2, color = "#1874CD") +
+#  geom_point(size = 2.2, color = "#1874CD") +
+  scale_x_continuous(breaks = seq(2000, 2022, by = 5)) +
+  labs(
+    title = "US Domestic Value Added in Final Demands of Telecommunications",
+    subtitle = "World, 2000–2022",
+    caption = "Source: OECD TiVA Database",
+    x = "Year",
+    y = "Million USD"
+  ) +
+  theme_minimal() +
+  theme(
+  plot.title = element_text(hjust = 0.5, face = "bold"),
+  plot.subtitle = element_text(hjust = 0.5)
+)
+
+
+p
+```
+
+```{r}
+ggsave("/Users/nw/Desktop/figure1.png", plot = p, width = 10, height = 6, dpi = 300)
+```
+
+#tiva oecd+non-oecd US EXPORT
+```{r}
+us_EXPORT <- read_csv("/Users/nw/Desktop/Practicum/TiVA/US_E.csv")
+us_EXPORT
+
+df_sum <- us_EXPORT %>%
+  filter(`Exporting area` %in% c("OECD", "Non-OECD economies")) %>%
+  group_by(TIME_PERIOD) %>%
+  summarise(
+    total_value = sum(OBS_VALUE, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(TIME_PERIOD = as.numeric(TIME_PERIOD)) %>%
+  arrange(TIME_PERIOD)
+
+plot_us <- ggplot(df_sum, aes(x = TIME_PERIOD, y = total_value)) +
+  geom_line(linewidth = 1.2, color = "#1874CD") +
+#  geom_point(size = 2.2, color = "#1874CD") +
+  scale_x_continuous(breaks = seq(min(df_sum$TIME_PERIOD), max(df_sum$TIME_PERIOD), by = 5)) +
+  scale_y_continuous(labels = label_number(big.mark = ",")) +
+  labs(
+    title = "US Value Added in Telecommunications Gross Exports",
+    subtitle = "World, 2000–2022",
+    caption = "Source: OECD TiVA Database",
+    x = "Year",
+    y = "Million USD"
+  ) +
+  theme_minimal(base_size = 13) +
+ theme(
+  plot.title = element_text(hjust = 0.5, face = "bold"),
+  plot.subtitle = element_text(hjust = 0.5)
+)
+
+plot_us
+```
+
+
+```{r}
+ggsave("/Users/nw/Desktop/figure2.png", plot = plot_us, width = 10, height = 6, dpi = 300)
+```
+
+
+
+#indirect Chinese VA
+```{r}
+C_VA <- read_csv("/Users/nw/Desktop/Practicum/TiVA/indirect Chinese VA.csv")
+C_VA
+
+```
+
+```{r}
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(scales)
+
+plot_df <- C_VA %>%
+  transmute(
+    year = as.numeric(TIME_PERIOD),
+    value_million = as.numeric(OBS_VALUE)
+  ) %>%
+  arrange(year)
+
+# 3. 畫圖
+pp <- ggplot(plot_df, aes(x = year, y = value_million)) +
+  geom_line(color = "#1874CD", linewidth = 1.2) +
+#  geom_point(color = "#1874CD", size = 2.5) +
+  scale_x_continuous(breaks = seq(min(plot_df$year), max(plot_df$year), by = 5)) +
+  scale_y_continuous(
+    labels = label_number(big.mark = ","),
+    expand = expansion(mult = c(0.02, 0.08))
+  ) +
+  labs(
+    title = "Chinese Value Added in U.S. Telecommunications Final Demand",
+    subtitle = "2000–2022, China → United States",
+    x = "Year",
+    y = "US$ Million",
+    caption = "Source: OECD TiVA Database"
+  ) +
+  theme_minimal(base_size = 13) +
+ theme(
+  plot.title = element_text(hjust = 0.5, face = "bold"),
+  plot.subtitle = element_text(hjust = 0.5)
+)
+
+
+pp
+
+# 5. 匯出圖片
+ggsave("/Users/nw/Desktop/figure3.png", plot = pp, width = 10, height = 6, dpi = 300)
+
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(scales)
+
+plot_df <- C_VA %>%
+  transmute(
+    year = as.numeric(TIME_PERIOD),
+    value_million = as.numeric(OBS_VALUE)
+  ) %>%
+  arrange(year) %>%
+  mutate(
+    yoy_growth = value_million / lag(value_million) - 1,
+    yoy_label = percent(yoy_growth, accuracy = 0.1)
+  )
+
+pp1 <- ggplot(plot_df, aes(x = year, y = value_million)) +
+  geom_line(color = "#1874CD", linewidth = 1.2) +
+  geom_point(color = "#1874CD", size = 2.3) +
+  geom_text(
+    data = plot_df %>% filter(year %% 5 == 0),
+    aes(label = yoy_label),
+    vjust = -0.8,
+    size = 3,
+    na.rm = TRUE
+  ) +
+  scale_x_continuous(breaks = seq(min(plot_df$year), max(plot_df$year), by = 5)) +
+  scale_y_continuous(
+    labels = label_number(big.mark = ","),
+    expand = expansion(mult = c(0.02, 0.12))
+  ) +
+  labs(
+    title = "Chinese Value Added in U.S. Telecommunications Final Demand",
+    subtitle = "2000–2022, China → United States",
+    x = "Year",
+    y = "US$ Million",
+    caption = "Source: OECD TiVA Database"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5),
+    plot.caption = element_text(hjust = 1)
+  )
+
+pp1
+
+ggsave("/Users/nw/Desktop/figure3.png", plot = pp1, width = 10, height = 6, dpi = 300)
+```
+
+
+
+#China
+```{r}
+china <- read_csv("/Users/nw/Desktop/Practicum/Comtrade/US imports from China.csv")
+china
+```
+
+```{r}
+pc <- china %>%
+  mutate(total_value = cifvalue/1000000) %>%
+  select(refYear, flowDesc, partnerDesc, cmdDesc, total_value, partnerDesc) %>%
+  ggplot(aes(x = refYear, y = total_value, color = partnerDesc)) +
+  geom_line() +
+  geom_point() +
+  theme_minimal() +
+  labs(
+    x = "Year",
+    y = "Total Value (US$) in Million",
+    color = "Country",
+    title = 'Telecomm - US imports from China over years',
+    caption = "Source: UN Comtrade"
+  )
+pc
+#can look years before 2018
+```
+
+
+```{r}
+usmca <- read_csv("/Users/nw/Desktop/Practicum/Comtrade/USMCA.csv")
+usmca
+```
+
+```{r}
+pu <- usmca %>%
+  mutate(total_value = cifvalue/1000000) %>%
+  select(refYear, flowDesc, partnerDesc, cmdDesc, total_value, partnerDesc) %>%
+  ggplot(aes(x = refYear, y = total_value, color = partnerDesc)) +
+  geom_line() +
+  geom_point() +
+  theme_minimal() +
+  labs(
+    x = "Year",
+    y = "Total Value (US$) in Million",
+    color = "Country",
+    title = 'Telecomm - US imports from Canada and Mexico over years',
+    caption = "Source: UN Comtrade"
+  )
+pu
+```
+
+```{r}
+comparison <- read_csv("/Users/nw/Desktop/Practicum/Comtrade/Comparison.csv")
+comparison
+```
+
+```{r}
+pcp <- comparison %>%
+  mutate(total_value = cifvalue / 1000000) %>%
+  select(refYear, flowDesc, partnerDesc, cmdDesc, total_value) %>%
+  ggplot(aes(x = refYear, y = total_value, color = partnerDesc)) +
+  geom_line() +
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(2015, 2023, 1)) +
+  scale_color_manual(values = c(
+    `IRL` = '#FFDAB9',
+    `CHE` = '#7D26CD',
+    `Thailand` = "#00247D",
+    `DEU` = "#39FF14",
+    `China` = "#E63946",
+    `Canada` = "#F4A261",
+    `India` = "#2A9D8F",
+    `ITA` = '#E066FF',
+    `DNK` = '#3A5FCD',
+    `Mexico` = "#FFB6C1",
+    `Japan` = "#6A4C93",
+    `Rep. of Korea` = "#E9C46A",
+    `Viet Nam` = "#264653",
+    `USA` = "#1874CD",
+    `EU28` = "#CD9B9B"
+  )) +
+  labs(
+    x = "Year",
+    y = "Total Value (US$) in Million",
+    color = "Country",
+    title = "Telecomm - US imports from different countries over years",
+    caption = "Source: UN Comtrade"
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    plot.caption = element_text(hjust = 1)
+  )
+
+pcp
+
+#pcp <- comparison %>%
+#  mutate(total_value = cifvalue/1000000) %>%
+#  select(refYear, flowDesc, partnerDesc, cmdDesc, total_value, partnerDesc) %>%
+#  ggplot(aes(x = refYear, y = total_value, color = partnerDesc)) +
+#  geom_line() +
+#  geom_point() +
+#  theme_minimal() +
+#  scale_x_continuous(breaks = seq(2015, 2023, 1)) +
+  # labs(
+#     x = "Year",
+#     y = "Total Value (US$) in Million",
+#     color = "Country",
+#     title = 'Telecomm - US imports from different countries over years',
+#     caption = "Source: UN Comtrade"
+#   )
+# 
+# pcp
+```
+
+#TiVA all countries
+```{r}
+all <- read_csv("/Users/nw/Desktop/Practicum/TiVA/all countries.csv")
+all
+
+```
+
+```{r}
+
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(scales)
+
+top10_countries <- all %>%
+  group_by(`Value added origin area`) %>%
+  summarise(
+    total_value = sum(OBS_VALUE, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(total_value)) %>%
+  slice_head(n = 10)
+
+df_top10 <- all %>%
+  filter(`Value added origin area` %in% top10_countries$`Value added origin area`) %>%
+  mutate(
+    TIME_PERIOD = as.numeric(TIME_PERIOD),
+    OBS_VALUE = as.numeric(OBS_VALUE)
+  ) %>%
+  arrange(`Value added origin area`, TIME_PERIOD)
+
+p_top10 <- ggplot(
+  df_top10,
+  aes(x = TIME_PERIOD, y = OBS_VALUE, color = `Value added origin area`)
+) +
+  geom_line(linewidth = 1) +
+  scale_x_continuous(
+    breaks = seq(min(df_top10$TIME_PERIOD), max(df_top10$TIME_PERIOD), by = 5)
+  ) +
+  scale_y_continuous(labels = label_number(big.mark = ",")) +
+  labs(
+    title = "Top 10 Countries by Total Value Added",
+    subtitle = "Selected by cumulative value across all years",
+    x = "Year",
+    y = "Million USD",
+    color = "Country",
+    caption = "Source: OECD TiVA Database"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5),
+    plot.caption = element_text(hjust = 1)
+  )
+
+p_top10
+
+```
+
+```{r}
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(scales)
+
+
+df_clean1 <- all %>%
+  mutate(
+    TIME_PERIOD = as.numeric(TIME_PERIOD),
+    OBS_VALUE = as.numeric(OBS_VALUE)
+  )
+
+top9 <- df_clean1 %>%
+  group_by(`Value added origin area`) %>%
+  summarise(total_value = sum(OBS_VALUE, na.rm = TRUE), .groups = "drop") %>%
+  arrange(desc(total_value)) %>%
+  slice_head(n = 9)
+
+top9_names <- top9 %>%
+  arrange(desc(total_value)) %>%
+  pull(`Value added origin area`)
+
+
+df_share <- df_clean1 %>%
+  group_by(TIME_PERIOD) %>%
+  mutate(year_total = sum(OBS_VALUE, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(share = OBS_VALUE / year_total)
+
+
+df_top9 <- df_share %>%
+  filter(`Value added origin area` %in% top9_names)
+
+bg_data <- expand.grid(
+  facet_country = top9_names,
+  country = top9_names,
+  stringsAsFactors = FALSE
+) %>%
+  left_join(
+    df_top9 %>%
+      select(
+        TIME_PERIOD,
+        country = `Value added origin area`,
+        share
+      ),
+    by = "country"
+  ) %>%
+  mutate(
+    facet_country = factor(facet_country, levels = top9_names)
+  )
+
+fg_data <- df_top9 %>%
+  mutate(
+    facet_country = factor(`Value added origin area`, levels = top9_names)
+  )
+
+ppp <- ggplot() +
+  geom_line(
+    data = bg_data,
+    aes(x = TIME_PERIOD, y = share, group = country),
+    color = "grey80",
+    linewidth = 0.6
+  ) +
+  geom_line(
+    data = fg_data,
+    aes(x = TIME_PERIOD, y = share, color = facet_country),
+    linewidth = 1
+  ) +
+  facet_wrap(~ facet_country, ncol = 3) +
+  scale_x_continuous(breaks = seq(min(df_top9$TIME_PERIOD), max(df_top9$TIME_PERIOD), by = 5)) +
+  scale_y_continuous(labels = percent_format(accuracy = 1)) +
+  labs(
+    title = "Share of Value Added in US Final Demand - Telecommunications",
+    x = "Year",
+    y = "Share of Value Added",
+    caption = "Source: OECD TiVA Database"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    plot.caption = element_text(hjust = 1),
+    strip.text = element_text(face = "bold"),
+    legend.position = "none",
+    panel.grid.minor = element_blank()
+  )
+
+ppp
+```
+
+```{r}
+ggsave("/Users/nw/Desktop/figure4.png", plot = ppp, width = 10, height = 6, dpi = 300)
+```
+
+
+
+```{r}
+Tworld <- read_csv("/Users/nw/Desktop/Practicum/TiVA/world.csv")
+Tworld
+```
+
+
+# US Final Demands From Different Countries Over Years
+```{r}
+ptw <- Tworld %>% 
+  select(`Value added origin area`, TIME_PERIOD, OBS_VALUE) %>%
+  filter(`Value added origin area` %in% c("Thailand", "India", "Viet Nam", "Korea", "Cambodia", "Japan", 
+                                          "Chinese Taipei", "China (People’s Republic of)")) %>%
+  ggplot(aes(x = TIME_PERIOD, y = OBS_VALUE, color = `Value added origin area`)) +
+  geom_line() +
+  geom_point() +
+  theme_minimal() +
+  labs(
+    x = "Year",
+    y = "Total Value (US$) in Million",
+    fill = "Country",
+    title = 'Telecomm - US Final Demands From Different Countries Over Years',
+    caption = "Source: TiVA"
+  )
+
+ptw
+
+```
+
+
+# TiVA world growth %
+```{r}
+growth_data <- Tworld %>%
+  select(`Value added origin area`, TIME_PERIOD, OBS_VALUE) %>%
+  filter(`Value added origin area` %in% 
+           c("Thailand","India","Viet Nam","Korea", "China (People’s Republic of)",
+             "Cambodia","Japan","Chinese Taipei", "World")) %>%
+  arrange(`Value added origin area`, TIME_PERIOD) %>%
+  group_by(`Value added origin area`) %>%
+  mutate(
+    growth_rate = (OBS_VALUE - lag(OBS_VALUE)) / lag(OBS_VALUE) * 100
+  )
+
+growth_plot <- growth_data %>%
+  ggplot(aes(x = TIME_PERIOD, y = growth_rate,
+             color = `Value added origin area`)) +
+  geom_line() +
+  theme_minimal() +
+  labs(
+    x = "Year",
+    y = "Growth Rate (%)",
+    color = "Value added origin area",
+    title = "Growth of Value Added in US Telecom Final Demands",
+    caption = "Source: TiVA"
+  )
+
+growth_plot
+```
+
+# TiVA China growth %
+```{r}
+china_growth_data <- Tworld %>%
+  select(`Value added origin area`, TIME_PERIOD, OBS_VALUE) %>%
+  filter(`Value added origin area` %in% 
+           c("China (People’s Republic of)")) %>%
+  arrange(`Value added origin area`, TIME_PERIOD) %>%
+  group_by(`Value added origin area`) %>%
+  mutate(
+    growth_rate = (OBS_VALUE - lag(OBS_VALUE)) / lag(OBS_VALUE) * 100
+  )
+
+growth_plot_china <- china_growth_data %>%
+  ggplot(aes(x = TIME_PERIOD, y = growth_rate)) +
+  geom_line(color = "red") +
+  theme_minimal() +
+  labs(
+    x = "Year",
+    y = "China Growth Rate (%)",
+    title = "China Growth of Value Added in US Telecom Final Demands",
+    caption = "Source: TiVA"
+  )
+
+growth_plot_china
+```
+
+```{r}
+new<- read_csv("/Users/nw/Desktop/Practicum/Comtrade/New.csv")
+new
+```
+
+```{r}
+country_year <- comparison %>%
+  filter(!partnerDesc %in% c("World", "Other Asia, nes")) %>%
+  group_by(refYear, partnerDesc) %>%
+  summarise(
+    total_value = sum(primaryValue, na.rm = TRUE)
+  ) %>%
+  ungroup()
+country_year
+```
+
+
+```{r}
+top9_each_year <- country_year %>%
+  group_by(refYear) %>%
+  slice_max(total_value, n = 9)
+top9_each_year
+```
+
+
+```{r}
+ggplot(top9_data,
+       aes(x = refYear, y = total_value/1000000)) +
+  geom_line(color = "steelblue") +
+  geom_point() +
+  facet_wrap(~ partnerDesc, scales = "free_y") +
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(2015, 2024, 3)) +
+  labs(
+    x = "Year",
+    y = "Primary Value (US$ in Million)",
+    title = "Top 9 Countries of US Telecom Imports (2015–2024)",
+    caption = "Source: UN Comtrade"
+  )
+
+```
+
+
+#Comtrade US export - World
+```{r}
+install.packages("readxl")
+library(readxl)
+
+Comtrade_US_World <- read_excel("/Users/nw/Desktop/Practicum/Comtrade/us export world.xlsx")
+Comtrade_US_World
+```
+
+```{r}
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(scales)
+
+plot_df <- Comtrade_US_World %>%
+  transmute(
+    year = as.numeric(refYear),
+    export_million = as.numeric(primaryValue) / 1e6
+  ) %>%
+  arrange(year)
+
+p_11 <- ggplot(plot_df, aes(x = year, y = export_million)) +
+  geom_line(color = "#1874CD", linewidth = 1.2) +
+  scale_x_continuous(breaks = plot_df$year) +
+  scale_y_continuous(
+    labels = label_comma(),
+    expand = expansion(mult = c(0.02, 0.08))
+  ) +
+  labs(
+    title = "U.S. Telecommunications Exports to the World",
+    subtitle = "UN Comtrade",
+    x = "Year",
+    y = "US$ Million",
+    caption = "Source: UN Comtrade"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5),
+    plot.caption = element_text(hjust = 1)
+  )
+
+p_11
+
+
+ggsave("/Users/nw/Desktop/figure5.png", plot = p_11, width = 10, height = 6, dpi = 300)
+```
+
+
+
+
+
+
+
+
+
+
+
